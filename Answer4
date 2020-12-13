@@ -31,13 +31,6 @@ public:
 
 //Конструкторы
 template <typename T>
-bool RWTree<T>::remove(T mean) {
-    if (key != nullptr)
-        check_root(this);
-    remover(mean);
-}
-
-template <typename T>
 void RWTree<T>::balance_drop(RWTree<T> *A) {
 
     if(A->parent == nullptr) { // Если узел корень
@@ -68,18 +61,19 @@ void RWTree<T>::balance_drop(RWTree<T> *A) {
             LeftRotate(father);
         }
 
-        if (brother->left->colour && brother->right->colour)
+        if ((brother->left != nullptr && brother->right != nullptr) && (brother->left->colour && brother->right->colour))
             brother->colour = true;
 
         else {
-        if(!brother->right->colour) {  // "брат" красный с черными правым ребенком
+        if(brother != nullptr && !brother->right->colour) {  // "брат" красный с черными правым ребенком
             brother->left->colour = false;
             brother->colour = true;
             RightRotate(brother);
         }
         brother->colour = father->colour;   // случай, рассматриваемый в последнем подпункте
         father->colour = false;
-        brother->right->colour = false;
+        if(brother->right != nullptr)
+            brother->right->colour = false;
         LeftRotate(father);
         A = father;
         }
@@ -92,24 +86,32 @@ void RWTree<T>::balance_drop(RWTree<T> *A) {
             RightRotate(father);
         }
 
-        if (brother->left->colour && brother->right->colour)
+        if ((brother->left != nullptr && brother->right != nullptr) && (brother->left->colour && brother->right->colour))
             brother->colour = true;
 
         else {
-            if(!brother->right->colour) {  // "брат" красный с черными левым ребенком
+            if(brother->right != nullptr && !brother->right->colour) {  // "брат" красный с черными левым ребенком
                 brother->right->colour = false;
                 brother->colour = true;
                 LeftRotate(brother);
             }
             brother->colour = father->colour;   // случай, рассматриваемый в последнем подпункте
             father->colour = false;
-            brother->left->colour = false;
+            if(brother->left != nullptr)
+                brother->left->colour = false;
             LeftRotate(father);
             A = father;
         }
     }
     if(!A->colour)
         balance_drop(A);
+}
+
+template <typename T>
+bool RWTree<T>::remove(T mean) {
+    if (key != nullptr)
+        check_root(this);
+    remover(mean);
 }
 
 template <typename T>
@@ -144,7 +146,7 @@ void RWTree<T>::drop(RWTree<T> &A) {
         }
         return;
     }
-    if (A.left != nullptr || A.right != nullptr) { //Если два сына
+    if (A.left != nullptr && A.right != nullptr) { //Если два сына
         auto next = &A;
         while(next->left == nullptr){
             if(next->right != nullptr)
@@ -172,7 +174,7 @@ void RWTree<T>::drop(RWTree<T> &A) {
         if(!next->colour) // при удалении чёрной вершины мог нарушиться баланс
             balance_drop(next);
     }
-    else {     // один ребёнка
+    else {     // один ребёнок
         if(A.left != nullptr){ //Если существующий сын левый
             A.left->parent = A.parent;
             if(&A == A.parent->left) //Если А левый сын
@@ -245,40 +247,70 @@ void RWTree<T>::check_root(RWTree<T> *A) { //Проверка входим ли 
 
 template <typename T>
 void RWTree<T>::RightRotate(RWTree<T> *Cur) { //
-    RWTree<T> *swap;
-    Cur->left->parent = Cur->parent; //Меняем отца левого сына на отца Cur
-    if(Cur->parent != nullptr) {
-        if(Cur == Cur->parent->left)
-            Cur->parent->left = Cur->left; //Меняем сына отца Cur на левого сына Cur
-        else
-            Cur->parent->right = Cur->left; //Меняем сына отца Cur на левого сына Cur
+    RWTree<T> *boomer;
+    Cur->left->parent = Cur->parent;
+    if(Cur->left->right != nullptr) {
+        Cur->parent = Cur;
+        Cur->right->parent = Cur->left;
+        boomer = new RWTree<T>(*Cur); // Запоминаем Cur
+        boomer->left = Cur->left->right;
+        *Cur = *Cur->left;
+        boomer->left = Cur->right;
+        *Cur->left->parent = *boomer;
+        Cur->right = Cur->left->parent;
+        if(Cur->left != nullptr)
+            Cur->left->parent = Cur;
+        delete boomer;
     }
-        swap = Cur->left->right; // Запоминаем правого сына левого
-        Cur->left->right = Cur; // Делаем Cur правым сыном левого
-    Cur = Cur->left;
-    Cur->right->parent = Cur; // Заменяем отца копии Cur на его правого сына
-    Cur->right->left = swap; // Левый сын Cur становится листом
-    if(swap != nullptr)
-        Cur->right->left->parent = Cur->right;
+    else {
+        boomer = new RWTree<T>(*Cur);
+        boomer->parent = Cur;
+        boomer->left = nullptr;
+        Cur->left->parent = Cur->parent;
+        if(Cur->right == nullptr)
+            Cur->left->right = Cur->left;
+        Cur->left->right = Cur->left;
+        *Cur = *Cur->left; //Меняем местами Cur и его левого сына
+        *Cur->right = *boomer;
+        if (Cur->left != nullptr) //Поправляем ссылку левого сына Cur
+            Cur->left->parent = Cur;
+        if (Cur->right != nullptr)//Поправляем ссылку правого сына Cur
+            Cur->right->parent = Cur;
+    }
+
 }
 
 template <typename T>
 void RWTree<T>::LeftRotate(RWTree<T> *Cur) {
-    RWTree<T> *swap;
-    Cur->right->parent = Cur->parent; //Меняем отца правого сына на отца Cur
-    if(Cur->parent != nullptr) {
-        if(Cur == Cur->parent->left)
-            Cur->parent->left = Cur->right; //Меняем отца Cur на правого сына Cur
-        else
-            Cur->parent->right = Cur->right; //Меняем сына отца Cur на правого сына Cur
+    RWTree<T> *boomer;
+    if(Cur->right->left != nullptr) {
+        Cur->right->parent = Cur->parent;
+        Cur->parent = Cur;
+        Cur->left->parent = Cur->right;
+        boomer = new RWTree<T>(*Cur); // Запоминаем Cur
+        boomer->right = Cur->right->left;
+        *Cur = *Cur->right;
+        boomer->right = Cur->left;
+        *Cur->right->parent = *boomer;
+        Cur->left = Cur->right->parent;
+        if(Cur->right != nullptr)
+            Cur->right->parent = Cur;
+        delete boomer;
     }
-    swap = Cur->right->left; // Запоминаем левого сына правого
-    Cur->right->left = Cur; // Делаем Cur левым сыном правого сына
-    Cur = Cur->right;
-    Cur->left->parent = Cur; // Заменяем отца копии Cur на его правого сына
-    Cur->left->right = swap; // Правый сын Cur становится листом
-    if(swap != nullptr)
-        Cur->left->right->parent = Cur->right;
+    else {
+        boomer = new RWTree<T>(*Cur);
+        boomer->parent = Cur;
+        boomer->right = nullptr;
+        Cur->right->parent = Cur->parent;
+        if(Cur->left == nullptr)
+            Cur->right->left = Cur->right;
+        *Cur = *Cur->right; //Меняем местами Cur и его левого сына
+        *Cur->left = *boomer;
+        if (Cur->left != nullptr) //Поправляем ссылку левого сына Cur
+            Cur->left->parent = Cur;
+        if (Cur->right != nullptr)//Поправляем ссылку правого сына Cur
+            Cur->right->parent = Cur;
+    }
 }
 
 template <typename T>
@@ -320,9 +352,9 @@ void RWTree<T>::balance_insert(RWTree<T> *Cur) {
                     Cur = father;
                     LeftRotate(Cur);
                 }
-                Cur->parent->colour = false; // Отца в чёрный
-                Cur->parent->parent->colour = true; // Деда в красный
-                RightRotate(Cur->parent->parent);
+                father->colour = false; // Отца в чёрный
+                grandfather->colour = true; // Деда в красный
+                RightRotate(grandfather);
             }
     }
     else { // Отец правый ребёнок
@@ -337,9 +369,9 @@ void RWTree<T>::balance_insert(RWTree<T> *Cur) {
                 Cur = father;
                 RightRotate(Cur); //*******
             }
-            Cur->parent->colour = false; // Отца в чёрный
-            Cur->parent->parent->colour = true; // Деда в красный
-            LeftRotate(Cur->parent->parent);
+            father->colour = false; // Отца в чёрный
+            grandfather->colour = true; // Деда в красный
+            LeftRotate(grandfather);
         }
     }
     if(Cur->parent == nullptr) { // Если узел корень
@@ -398,41 +430,15 @@ bool RWTree<T>::find(T mean)
 int main() {
     RWTree<int> Test;
 
+    int i = 1<<15;
+    for(i;i>0;i--)
+    Test.insert(rand()%1000);
 
-    Test.insert(4962);
-    Test.insert(3227);
-    Test.insert(4872);
-    Test.insert(2907);
-    Test.insert(3235);
-    Test.insert(1830);
-    Test.insert(1383);
-    Test.insert(2052);
-    Test.insert(1179);
-    Test.insert(3074);
-    Test.insert(3940);
-    Test.insert(3653);
-    Test.insert(4243);
-    Test.insert(2955);
-    Test.insert(1813);
-    Test.insert(3661);
-    Test.insert(2720);
-    Test.insert(1466);
-    Test.insert(1625);
-    Test.insert(1987);
-    Test.insert(2630);
-    Test.insert(993);
-    Test.insert(469);
-    Test.insert(2868);
-    Test.insert(4323);
-    Test.insert(3287);
-    Test.insert(4396);
-    Test.insert(3553);
-    Test.insert(1832);
-    Test.insert(3281);
-    Test.insert(492);
-    Test.insert(3205);
-    Test.insert(2453);
+    std::cout << Test.find(0);
 
+    i = 1<<15;
+    for(i;i>0;i--)
+        std::cout << Test.remove(rand()%1000);
 
 
     std::cout << Test.find(14);
